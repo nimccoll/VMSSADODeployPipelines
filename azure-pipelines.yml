@@ -1,0 +1,60 @@
+# ASP.NET VMSS Build Pipeline
+
+# Build an ASP.NET project and publish the files needed for deployment
+# to a virtual machine scale set.
+
+trigger: none
+
+pool:
+  vmImage: 'windows-latest'
+
+variables:
+  solution: '**/*.sln'
+  buildPlatform: 'Any CPU'
+  buildConfiguration: 'Release'
+  artifactName: 'drop'
+
+steps:
+- task: NuGetToolInstaller@1
+  displayName: 'Use NuGet'
+
+- task: NuGetCommand@2
+  displayName: 'NuGet restore'
+  inputs:
+    restoreSolution: '$(solution)'
+
+- task: VSBuild@1
+  displayName: 'Build solution'
+  inputs:
+    solution: '$(solution)'
+    msbuildArgs: '/p:DeployOnBuild=true /p:WebPublishMethod=Package /p:PackageAsSingleFile=true /p:SkipInvalidConfigurations=true /p:PackageLocation="$(build.artifactstagingdirectory)\\" /p:DeployIISAppPath="Default Web Site/MyApp"'
+    platform: '$(buildPlatform)'
+    configuration: '$(buildConfiguration)'
+
+- task: PublishSymbols@2
+  displayName: 'Publish symbols path'
+  inputs:
+    SearchPattern: '**\bin\**\*.pdb'
+    PublishSymbols: false
+  continueOnError: true
+
+- task: CopyFiles@2
+  displayName: 'Publish PowerShell DSC script'
+  inputs:
+    SourceFolder: '$(Build.SourcesDirectory)'
+    Contents: '**\DSC\*.zip'
+    TargetFolder: '$(build.artifactstagingdirectory)'
+
+- task: CopyFiles@2
+  displayName: 'Publish ARM template files'
+  inputs:
+    SourceFolder: '$(Build.SourcesDirectory)'
+    Contents: '**\ARM\*.json'
+    TargetFolder: '$(build.artifactstagingdirectory)'
+
+- task: PublishBuildArtifacts@1
+  displayName: 'Publish Artifact'
+  inputs:
+    PathtoPublish: '$(build.artifactstagingdirectory)'
+    ArtifactName: '$(artifactName)'
+  condition: succeededOrFailed()    

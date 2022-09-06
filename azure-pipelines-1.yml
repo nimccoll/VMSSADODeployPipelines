@@ -1,0 +1,63 @@
+# VMSS Release Pipeline
+
+# Deploy an ASP.Net application to a virtual machine scale set.
+
+trigger: none
+
+pool:
+  vmImage: windows-latest
+
+variables:
+  deploymentVersion: '6.0'
+  location: 'eastus'
+
+steps:
+- task: DownloadBuildArtifacts@1
+  inputs:
+    buildType: 'specific'
+    project: 'ee66e927-93f4-4756-8923-cd0720a7d92a'
+    pipeline: '55'
+    buildVersionToDownload: 'latest'
+    downloadType: 'single'
+    artifactName: 'drop'
+    downloadPath: '$(System.ArtifactsDirectory)'
+    
+- task: AzureFileCopy@4
+  displayName: 'Copy PowerShell DSC script to Blob Storage'
+  inputs:
+    SourcePath: '$(System.ArtifactsDirectory)/drop/DSC/IISInstall.ps1.zip'
+    azureSubscription: 'Azure CXP FTA Internal Subscription NIMCCOLL (b0ea2245-2d2d-4ba3-baa5-57d0ebfb643a)'
+    Destination: AzureBlob
+    storage: nimccollftastg
+    ContainerName: vmssdemo
+    BlobPrefix: 'DSC/IISInstall.ps1.zip'
+
+- task: AzureFileCopy@4
+  displayName: 'Copy Web Deployment Package to Blob Storage'
+  name: 'BC'
+  inputs:
+    SourcePath: '$(System.ArtifactsDirectory)/drop/ADOVS2017Repo.zip'
+    azureSubscription: 'Azure CXP FTA Internal Subscription NIMCCOLL (b0ea2245-2d2d-4ba3-baa5-57d0ebfb643a)'
+    Destination: AzureBlob
+    storage: nimccollftastg
+    ContainerName: vmssdemo
+    BlobPrefix: 'WebDeploy/DefaultASPWebApp.v$(deploymentVersion).zip'
+
+- powershell: |
+   # Write your PowerShell commands here.
+   
+   Write-Host "$(BC.StorageContainerUri)"
+   Write-Host "$(BC.StorageContainerSasToken)"
+   
+  displayName: 'PowerShell Script'
+
+- task: AzureResourceManagerTemplateDeployment@3
+  displayName: 'ARM Template deployment: Resource Group scope'
+  inputs:
+    azureResourceManagerConnection: 'Azure CXP FTA Internal Subscription NIMCCOLL (b0ea2245-2d2d-4ba3-baa5-57d0ebfb643a)'
+    subscriptionId: 'b0ea2245-2d2d-4ba3-baa5-57d0ebfb643a'
+    resourceGroupName: 'nimccfta-nimcc-vmss-rg'
+    location: 'East US'
+    csmFile: '$(System.ArtifactsDirectory)/drop/ARM/azuredeploy.json'
+    csmParametersFile: '$(System.ArtifactsDirectory)/drop/ARM/azuredeploy.parameters.json'
+    overrideParameters: '-vmSku "Standard_A2" -windowsOSVersion "2016-Datacenter" -vmssName "NIMCC-VMSS" -instanceCount 2 -au "$(VMSSAdminUserName)" -ap "$(VMSSAdminPassword)" -_artifactsLocation "$(BC.StorageContainerUri)" -_artifactsLocationSasToken "$(BC.StorageContainerSasToken)" -powershelldscZip "DSC/IISInstall.ps1.zip" -webDeployPackage "WebDeploy/DefaultASPWebApp.v$(DeploymentVersion).zip" -powershelldscUpdateTagVersion "$(deploymentVersion)" -location "$(location)"'
