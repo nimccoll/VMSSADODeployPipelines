@@ -1,0 +1,30 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "vmSku": {
+      "value": "Standard_A2"
+    },
+    "windowsOSVersion": {
+      "value": "2016-Datacenter"
+    },
+    "vmssName": {
+      "value": "NIMCC-VMSS"
+    },
+    "instanceCount": {
+      "value": 2
+    },
+    "_artifactsLocation": {
+      "value": "https://nimccollftastg.blob.core.windows.net/vmssdemo"
+    },
+    "powershelldscZip": {
+      "value": "/DSC/IISInstall.ps1.zip"
+    },
+    "webDeployPackage": {
+      "value": "/WebDeploy/DefaultASPWebApp.v2.0.zip"
+    },
+    "powershelldscUpdateTagVersion": {
+      "value": "2.0"
+    }
+  }
+}
